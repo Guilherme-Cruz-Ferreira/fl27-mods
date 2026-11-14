@@ -1,0 +1,52 @@
+{
+  "_ajuda": "Catálogo de descrições dos módulos Lua mostrados no app FL27 Mods. Chave = nome do arquivo .lua (minúsculo). Campos: titulo, descricao, aviso (opcional), requer (lista de módulos que precisam estar ligados). Para cadastrar um mod novo, copie um bloco e ajuste.",
+  "camera.lua": {
+    "titulo": "Câmera do SP (ajustes ao vivo)",
+    "descricao": "Ajusta a câmera fan view e a Dynamic Wide pelo overlay (Espaço). Base da câmera dinâmica."
+  },
+  "camera_dinamica.lua": {
+    "titulo": "Câmera dinâmica",
+    "descricao": "Abre a câmera no meio-campo, fecha nas áreas e abre mais perto das laterais, com transição suave. Ajustes no overlay (Espaço); F10 salva o traço da câmera.",
+    "requer": [
+      "camera.lua"
+    ]
+  },
+  "camtune.lua": {
+    "titulo": "Sintonizador de câmera (teste)",
+    "descricao": "Ferramenta para mexer em parâmetros da câmera ao vivo. Não é necessário no dia a dia; pode ficar desligado."
+  },
+  "foxlocomotion_fluidity.lua": {
+    "titulo": "Fox Locomotion",
+    "descricao": "Giro, parada e primeiro toque mais ágeis; opção de passe 360 graus. Overlay: F9 escolhe, setas ajustam, F6 preset, F5 salva.",
+    "aviso": "Muda bastante a sensação do jogo. Preset 4 (F6) = original."
+  },
+  "foxengine_precisionunlocker.lua": {
+    "titulo": "Fox Precision Unlocker",
+    "descricao": "Mantém as câmeras abertas a 60 Hz (em vez de 30 Hz) e libera a precisão numérica do motor."
+  },
+  "ai_tweaks.lua": {
+    "titulo": "IA do adversário (AI_Tweaks)",
+    "descricao": "Ajusta a personalidade da IA (arquivo modules/AI_Tweaks.ini).",
+    "aviso": "O padrão é o nível Legend em QUALQUER dificuldade. Se o jogo estiver difícil demais, desligue."
+  },
+  "referee_strictness.lua": {
+    "titulo": "Rigor do árbitro",
+    "descricao": "Controla a severidade de faltas e cartões (arquivo modules/referee_strictness.ini)."
+  },
+  "longshots.lua": {
+    "titulo": "Chutes de longe da IA (sem efeito hoje)",
+    "descricao": "Por segurança ele não escreve nada sem um endereço verificado, então hoje não faz nada. Pode ficar desligado."
+  },
+  "stadswitch.lua": {
+    "titulo": "Troca de estádio (SP, extra)",
+    "descricao": "Módulo extra do SP para trocar estádio em jogos específicos. Desligado por padrão."
+  },
+  "matchset.lua": {
+    "titulo": "Configurações de partida (SP)",
+    "descricao": "Pode forçar dificuldade, prorrogação e pênaltis (edite o arquivo para usar)."
+  },
+  "nets.lua": {
+    "titulo": "Redes dos gols (SP)",
+    "descricao": "Módulo do SP para as redes."
+  }
+}
