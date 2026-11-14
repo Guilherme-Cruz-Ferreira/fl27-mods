@@ -70,6 +70,16 @@ def detect_saves(prefix):
     return ''
 
 
+def detect_settings_dat(prefix):
+    if not prefix:
+        return ''
+    for pat in ('drive_c/users/*/Documents/SPGAME/Football Life/settings.dat', 'drive_c/users/*/Documents/SPGAME/*/settings.dat'):
+        hits = sorted(glob.glob(os.path.join(prefix, pat)))
+        if hits:
+            return os.path.realpath(hits[0])
+    return ''
+
+
 def detect_wine_dir():
     for pat in ('~/.var/app/net.lutris.Lutris/data/lutris/runners/wine/*/bin',
                 '~/.local/share/lutris/runners/wine/*/bin',
@@ -111,6 +121,7 @@ def resolve():
         livecpk_dir=os.path.join(sd, 'livecpk') if sd else '',
         backup_root=bk,
         ini_backup=os.environ.get('FL27_BACKUP_DIR') or c.get('INI_BACKUP_DIR') or os.path.join(bk, 'ini'),
+        settings_dat=c.get('SETTINGS_DAT') or detect_settings_dat(p),
         saves_dir=c.get('SAVES_DIR') or (detect_saves(p) if p else ''),
         saves_backup=c.get('SAVES_BACKUP_DIR') or os.path.join(bk, 'saves'),
         orig_ini=c.get('ORIG_INI') or os.path.join(bk, 'original', 'sider.ini.original'),
@@ -142,7 +153,7 @@ def shell_exports():
     r = resolve()
     names = {'FL27_GAME_DIR': 'game_dir', 'FL27_PREFIX': 'wineprefix', 'FL27_WINE_DIR': 'wine_dir', 'FL27_SD': 'sider_dir',
              'FL27_INI': 'ini', 'FL27_MODS': 'mods_dir', 'FL27_LIVE': 'livecpk_dir', 'FL27_BK': 'ini_backup',
-             'FL27_SAVES': 'saves_dir', 'FL27_SAVES_BK': 'saves_backup', 'FL27_ORIG_INI': 'orig_ini', 'FL27_ORIG_EXE': 'orig_exe',
+             'FL27_SAVES': 'saves_dir', 'FL27_SETTINGS_DAT': 'settings_dat', 'FL27_SAVES_BK': 'saves_backup', 'FL27_ORIG_INI': 'orig_ini', 'FL27_ORIG_EXE': 'orig_exe',
              'FL27_ORIG_DT13': 'orig_dt13', 'FL27_ANIM': 'anim_script', 'FL27_DLL': 'dlloverrides', 'FL27_DIAG': 'diag_dir',
              'FL27_SCRIPTS': 'scripts_dir', 'FL27_BKROOT': 'backup_root'}
     return '\n'.join('export %s=%s' % (k, shlex.quote(r[v])) for k, v in names.items())

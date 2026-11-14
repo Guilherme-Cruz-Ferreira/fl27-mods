@@ -14,6 +14,7 @@ Instead of editing `sider.ini` by hand, you flip switches, tweak settings and in
 |---|---|
 | **Mods** | One switch per Lua module in `SiderAddons/modules`, with a description and warnings (descriptions live in `app/mods.json`). Dependencies are checked (e.g. a mod that needs `camera.lua`). Modules that ship with the SP base are tucked away in a collapsed section. |
 | **Ajustes** (Settings) | Number fields for the config files of popular mods: dynamic camera, Fox Locomotion, AI personality (`AI_Tweaks.ini`), referee strictness presets. Comments in the files are preserved; the previous file is copied to the backup folder before every save. |
+| **Tela e gráficos** (Display) | The same options as the *Display* tab of the official `Settings.exe`, edited in `settings.dat`: window / full screen, resolution (presets or any `WxH`), 30/60 fps in game and in replays, VSync (off / 1 / 2), HDR flag. Only the known bits/fields are written, the rest of the file is untouched, with a backup first. A button opens the official `Settings.exe` for keyboard / controller / audio. |
 | **Instalar mod** (Install) | Pick a `.lua`, `.zip`, `.rar` or `.7z`. The archive is extracted into an isolated temp folder (path-traversal and symlinks are refused, nothing is executed), `scripts/verify_mod.py` checks whether the module's byte patterns exist in your exe, and you choose which files to copy. Updating an existing mod backs up the old `.lua` and **keeps your existing `.ini`/`.txt`** unless you tick them. Game data (`.cpk`, `.exe`, `.dll`) is never installed by the wizard. |
 | **Saves e backups** | One-click save backup/restore (a restore also snapshots the state it replaces) and "revert to original". |
 | **Animações** *(optional)* | Only shown if you set `ANIM_SCRIPT` — a script of your own that switches animation packs (`script fox\|ps9\|leve\|status`). |
@@ -22,6 +23,7 @@ Instead of editing `sider.ini` by hand, you flip switches, tweak settings and in
 The header has **Open game**, **Open (debug)** and **Close game** buttons. While the game runs, all editing is disabled (Sider only reads `sider.ini` at startup).
 
 ![Settings tab](docs/settings.png)
+![Display tab](docs/display.png)
 ![Install tab](docs/install.png)
 
 ## Requirements
@@ -49,7 +51,7 @@ Every path is configurable — see [`config.example.env`](config.example.env) (g
 ```
 app/        fl27_mods.py (window), fl27_extra.py (Settings + Install tabs), fl27paths.py (config), mods.json (descriptions)
 scripts/    mod.sh (on/off/root-on/root-off/list/restaurar), backup_saves.sh, launch.sh [--debug], status.sh,
-            revert_to_original.sh, diagnose_freeze.sh, verify_mod.py
+            revert_to_original.sh, open_settings.sh, diagnose_freeze.sh, verify_mod.py
 tests/      run_tests.sh — builds a fake install in a temp dir and checks scripts and file helpers (no game needed)
 ```
 
@@ -67,6 +69,7 @@ python3 app/fl27_mods.py --selftest
 
 * Developed and used on one machine (Lutris GE-Proton/Wine). Other setups should work through `config.env` but are untested — issues welcome.
 * Tested without the game running: config/ini editing, mod toggling, backups/restores, the install wizard. The open/close-game buttons and live "game is running" locking were only exercised on the author's setup.
+* The `settings.dat` layout (flags at offset 0x08, width/height at 0x0C/0x10) was read from the official Settings DLL and cross-checked against files saved by the official tool. Other fields in that file (sound buffer, controller, network) are not exposed.
 * `verify_mod.py` is a heuristic (byte-pattern search in the exe), not a guarantee.
 * Related project: the [dynamic camera Sider module](https://github.com/Guilherme-Cruz-Ferreira/fl27-camera-dinamica).
 

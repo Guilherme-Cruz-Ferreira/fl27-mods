@@ -40,4 +40,15 @@ assert os.path.exists(os.environ['FL27_SIDER_DIR'] + '/modules/m.lua')
 z = zipfile.ZipFile(sys.argv[2] + '/evil.zip', 'w'); z.writestr('../evil', 'x'); z.close()
 e2 = sys.argv[2] + '/ex2'; os.makedirs(e2); assert not X.safe_extract(sys.argv[2] + '/evil.zip', e2)[0]
 PY
+python3 - "$D" "$T" <<'PY' && ok "settings.dat (tela/FPS/VSync)" || fail settingsdat
+import sys, os, struct
+sys.path.insert(0, sys.argv[1] + '/app'); import fl27_extra as X
+f = sys.argv[2] + '/settings.dat'
+d = bytearray(612); d[:4] = b'WECF'; struct.pack_into('<III', d, 8, 0x477, 1920, 1080)
+open(f, 'wb').write(bytes(d)); os.environ['FL27_BACKUP_DIR'] = sys.argv[2] + '/bk'
+assert X.read_display(f) == dict(fullscreen=True, w=1920, h=1080, fps_game60=True, fps_replay60=False, vsync='1', hdr=False)
+X.write_display(f, False, 1280, 720, False, True, 'off', False)
+r = X.read_display(f); assert r == dict(fullscreen=False, w=1280, h=720, fps_game60=False, fps_replay60=True, vsync='off', hdr=False), r
+X.write_display(f, True, 1920, 1080, True, False, '1', False); assert open(f, 'rb').read() == bytes(d)
+PY
 echo "todos os testes passaram"

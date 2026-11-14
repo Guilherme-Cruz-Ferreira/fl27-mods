@@ -68,6 +68,54 @@ def write_values(path, values, spaced=False):
     open(path, 'wb').write(nl.join(lines).encode('utf-8'))
 
 
+# ---- settings.dat (o arquivo do Settings.exe oficial: tela, resolucao, FPS, VSync, HDR)
+# Formato (lido do proprio Settings_b.dll): magic "WECF"; u32 em 0x0C = largura; u32 em 0x10 = altura;
+# u32 em 0x08 = bits: 0 tela cheia | 1 esperar vsync | 2 60fps no jogo | 3 60fps em replays/demos |
+#                     9 vsync desligado | 10 vsync ligado 1 | 11 vsync ligado 2 | 30 HDR
+import struct  # noqa: E402
+
+SD_FLAGS, SD_W, SD_H = 0x08, 0x0C, 0x10
+BIT_FULL, BIT_WAIT, BIT_FPS_GAME, BIT_FPS_REPLAY, BIT_VS_OFF, BIT_VS_1, BIT_VS_2, BIT_HDR = 0, 1, 2, 3, 9, 10, 11, 30
+RESOLUTIONS = [(1280, 720), (1366, 768), (1600, 900), (1920, 1080), (2560, 1080), (2560, 1440), (3440, 1440), (3840, 2160)]
+
+
+def read_display(path):
+    """-> dict(fullscreen, w, h, fps_game60, fps_replay60, vsync('off'|'1'|'2'|None), hdr) ou None se o arquivo nao e valido."""
+    try:
+        d = open(path, 'rb').read()
+    except OSError:
+        return None
+    if d[:4] != b'WECF' or len(d) < 0x14:
+        return None
+    f = struct.unpack_from('<I', d, SD_FLAGS)[0]
+    w, h = struct.unpack_from('<II', d, SD_W)
+    b = lambda n: bool(f >> n & 1)  # noqa: E731
+    vs = 'off' if b(BIT_VS_OFF) else '1' if b(BIT_VS_1) else '2' if b(BIT_VS_2) else None
+    return dict(fullscreen=b(BIT_FULL), w=w, h=h, fps_game60=b(BIT_FPS_GAME), fps_replay60=b(BIT_FPS_REPLAY), vsync=vs, hdr=b(BIT_HDR))
+
+
+def write_display(path, fullscreen, w, h, fps_game60, fps_replay60, vsync, hdr):
+    """Grava so os bits/campos conhecidos; o resto do arquivo fica intacto. Backup antes."""
+    d = bytearray(open(path, 'rb').read())
+    if d[:4] != b'WECF':
+        raise ValueError('settings.dat inválido')
+    f = struct.unpack_from('<I', d, SD_FLAGS)[0]
+
+    def setb(f, n, on):
+        return (f | (1 << n)) if on else (f & ~(1 << n))
+    f = setb(f, BIT_FULL, fullscreen)
+    f = setb(f, BIT_FPS_GAME, fps_game60)
+    f = setb(f, BIT_FPS_REPLAY, fps_replay60)
+    f = setb(f, BIT_VS_OFF, vsync == 'off')
+    f = setb(f, BIT_VS_1, vsync == '1')
+    f = setb(f, BIT_VS_2, vsync == '2')
+    f = setb(f, BIT_HDR, hdr)
+    struct.pack_into('<I', d, SD_FLAGS, f)
+    struct.pack_into('<II', d, SD_W, int(w), int(h))
+    backup_file(path)
+    open(path, 'wb').write(bytes(d))
+
+
 def fmt_num(x):
     s = ('%.4f' % x).rstrip('0').rstrip('.')
     return s or '0'
@@ -478,6 +526,136 @@ def _num(s):
         return int(f) if f == int(f) else f
     except (TypeError, ValueError):
         return None
+
+
+class DisplayPage(Gtk.ScrolledWindow):
+    """Aba 'Tela e gráficos': mesmas opções da aba Display do Settings.exe oficial."""
+
+    def __init__(self, app, dat_path, settings_exe_script=None):
+        super().__init__()
+        self.app, self.path = app, dat_path
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        box.set_border_width(12)
+        self.add(box)
+        n = Gtk.Label(xalign=0, wrap=True)
+        n.set_max_width_chars(95)
+        n.set_markup('<small>São as mesmas opções da aba "Display" do Settings.exe oficial, gravadas no mesmo arquivo '
+                     '(settings.dat). Vale na próxima vez que abrir o jogo. Cada salvamento guarda uma cópia do arquivo anterior.</small>')
+        box.pack_start(n, False, False, 0)
+        self.lbl = Gtk.Label(xalign=0, wrap=True)
+        box.pack_start(self.lbl, False, False, 0)
+        if not read_display(dat_path):
+            self.lbl.set_markup('<span foreground="#d97706">settings.dat não encontrado ou inválido (%s). '
+                                'Abra o jogo/Settings.exe uma vez para criá-lo, ou defina SETTINGS_DAT no config.</span>'
+                                % GLib.markup_escape_text(dat_path or '?'))
+        self.rb_win = Gtk.RadioButton.new_with_label(None, 'Janela')
+        self.rb_full = Gtk.RadioButton.new_with_label_from_widget(self.rb_win, 'Tela cheia')
+        box.pack_start(self._group('Modo de tela', [self.rb_win, self.rb_full]), False, False, 0)
+        self.cb_res = Gtk.ComboBoxText.new_with_entry()
+        for w, h in RESOLUTIONS:
+            self.cb_res.append_text('%dx%d' % (w, h))
+        rb = Gtk.Box(spacing=8)
+        rb.pack_start(Gtk.Label(label='Resolução (largura x altura):'), False, False, 0)
+        rb.pack_start(self.cb_res, False, False, 0)
+        box.pack_start(self._frame('Resolução', rb), False, False, 0)
+        self.g60 = Gtk.RadioButton.new_with_label(None, '60 fps')
+        self.g30 = Gtk.RadioButton.new_with_label_from_widget(self.g60, '30 fps')
+        self.r60 = Gtk.RadioButton.new_with_label(None, '60 fps')
+        self.r30 = Gtk.RadioButton.new_with_label_from_widget(self.r60, '30 fps')
+        fb = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        for lab, a, b in (('No jogo:', self.g60, self.g30), ('Replays e demos:', self.r60, self.r30)):
+            r = Gtk.Box(spacing=12)
+            lb = Gtk.Label(label=lab, xalign=0)
+            lb.set_size_request(150, -1)
+            r.pack_start(lb, False, False, 0)
+            r.pack_start(a, False, False, 0)
+            r.pack_start(b, False, False, 0)
+            fb.pack_start(r, False, False, 0)
+        box.pack_start(self._frame('Taxa de quadros', fb), False, False, 0)
+        self.v_off = Gtk.RadioButton.new_with_label(None, 'Desligado')
+        self.v_1 = Gtk.RadioButton.new_with_label_from_widget(self.v_off, 'Ligado 1')
+        self.v_2 = Gtk.RadioButton.new_with_label_from_widget(self.v_off, 'Ligado 2')
+        box.pack_start(self._group('VSync', [self.v_off, self.v_1, self.v_2]), False, False, 0)
+        self.hdr = Gtk.CheckButton(label='HDR (só funciona se monitor e driver suportarem; no Wine costuma não)')
+        box.pack_start(self._frame('HDR', self.hdr), False, False, 0)
+        bb = Gtk.Box(spacing=8)
+        self.btn_save = Gtk.Button(label='Salvar')
+        self.btn_save.get_style_context().add_class('suggested-action')
+        self.btn_save.connect('clicked', self.on_save)
+        self.btn_rel = Gtk.Button(label='Recarregar do arquivo')
+        self.btn_rel.connect('clicked', lambda *_: self.reload())
+        bb.pack_start(self.btn_save, False, False, 0)
+        bb.pack_start(self.btn_rel, False, False, 0)
+        if settings_exe_script:
+            b2 = Gtk.Button(label='Abrir o Settings.exe oficial (teclado, controle, áudio…)')
+            b2.connect('clicked', lambda *_: self._open_official(settings_exe_script))
+            bb.pack_start(b2, False, False, 0)
+            app.edit_widgets.append(b2)
+        box.pack_start(bb, False, False, 6)
+        dica = Gtk.Label(xalign=0, wrap=True)
+        dica.set_max_width_chars(95)
+        dica.set_markup('<small>Dicas: no Linux/Wine, "Janela" é a opção mais segura se a tela cheia der problema de foco. '
+                        '60 fps em replays pesa mais na GPU. A resolução precisa ser uma que seu monitor aceite em tela cheia.</small>')
+        box.pack_start(dica, False, False, 0)
+        for w in (self.rb_win, self.rb_full, self.cb_res, self.g60, self.g30, self.r60, self.r30, self.v_off, self.v_1, self.v_2,
+                  self.hdr, self.btn_save, self.btn_rel):
+            app.edit_widgets.append(w)
+        self.reload()
+
+    def _open_official(self, script):
+        if self.app.running:
+            self.app.info('Feche o jogo antes.', Gtk.MessageType.WARNING)
+            return
+        subprocess.Popen([script], start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        self.app.log('Abrindo o Settings.exe oficial… (feche-o antes de salvar nesta aba, para um não sobrescrever o outro)')
+
+    def _frame(self, title, child):
+        f = Gtk.Frame(label=title)
+        child.set_margin_start(8)
+        child.set_margin_end(8)
+        child.set_margin_top(6)
+        child.set_margin_bottom(8)
+        f.add(child)
+        return f
+
+    def _group(self, title, widgets):
+        b = Gtk.Box(spacing=18)
+        for w in widgets:
+            b.pack_start(w, False, False, 0)
+        return self._frame(title, b)
+
+    def reload(self):
+        d = read_display(self.path)
+        if not d:
+            return
+        (self.rb_full if d['fullscreen'] else self.rb_win).set_active(True)
+        self.cb_res.get_child().set_text('%dx%d' % (d['w'], d['h']))
+        (self.g60 if d['fps_game60'] else self.g30).set_active(True)
+        (self.r60 if d['fps_replay60'] else self.r30).set_active(True)
+        {'off': self.v_off, '1': self.v_1, '2': self.v_2}.get(d['vsync'], self.v_1).set_active(True)
+        self.hdr.set_active(d['hdr'])
+        self.lbl.set_markup('<small>Arquivo: %s</small>' % GLib.markup_escape_text(self.path))
+
+    def on_save(self, *_):
+        app = self.app
+        if app.running or app.busy:
+            app.info('Feche o jogo antes de salvar.', Gtk.MessageType.WARNING)
+            return
+        m = re.match(r'^\s*(\d{3,5})\s*[xX×]\s*(\d{3,5})\s*$', self.cb_res.get_child().get_text())
+        if not m or not (320 <= int(m.group(1)) <= 16384 and 240 <= int(m.group(2)) <= 16384):
+            app.info('Resolução inválida. Use o formato 1920x1080.', Gtk.MessageType.WARNING)
+            return
+        vs = 'off' if self.v_off.get_active() else '2' if self.v_2.get_active() else '1'
+        try:
+            write_display(self.path, self.rb_full.get_active(), int(m.group(1)), int(m.group(2)),
+                          self.g60.get_active(), self.r60.get_active(), vs, self.hdr.get_active())
+        except (OSError, ValueError) as ex:
+            app.info('Não consegui salvar: %s' % ex, Gtk.MessageType.ERROR)
+            return
+        app.log('Tela/gráficos salvos: %s %sx%s, jogo %s fps, replays %s fps, vsync %s%s (backup em %s)' % (
+            'tela cheia' if self.rb_full.get_active() else 'janela', m.group(1), m.group(2),
+            60 if self.g60.get_active() else 30, 60 if self.r60.get_active() else 30, vs,
+            ', HDR' if self.hdr.get_active() else '', BK_DIR))
 
 
 # ================================================================ assistente de instalacao

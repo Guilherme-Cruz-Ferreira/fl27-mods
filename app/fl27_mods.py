@@ -181,6 +181,8 @@ class App(Gtk.Window):
         self.nb.append_page(self.build_saves_page(), Gtk.Label(label='Saves e backups'))
         self.settings = fl27_extra.SettingsPage(self, SD, MODS_DIR)
         self.nb.append_page(self.settings, Gtk.Label(label='Ajustes'))
+        self.display = fl27_extra.DisplayPage(self, R['settings_dat'], SC('open_settings.sh'))
+        self.nb.append_page(self.display, Gtk.Label(label='Tela e gráficos'))
         self.installer = fl27_extra.InstallPage(self, MODS_DIR, SC('verify_mod.py'))
         self.nb.append_page(self.installer, Gtk.Label(label='Instalar mod'))
         self.nb.append_page(self.build_tools_page(), Gtk.Label(label='Ferramentas'))
