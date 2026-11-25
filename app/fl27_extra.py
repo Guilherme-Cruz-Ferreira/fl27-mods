@@ -156,6 +156,23 @@ CAMERA_FIELDS = [
     ('side_in_close', 'Lateral quando a câmera está fechada (0 a 1)', 0, 1, 0.05, 0.35, ''),
 ]
 
+# Perfis prontos da câmera dinâmica: escolher um preenche os campos; "Salvar" grava no camera_dinamica.ini.
+# Chaves que não aparecem nos campos (ângulo, lateral, velocidade) também são gravadas.
+CAMERA_PRESETS = {
+    'Padrão do mod': dict(
+        dist_open=30, dist_close=25.5, height_open=54, height_close=34,
+        near_start=23, near_end=5, def_start=35, def_end=17, def_strength=0.5,
+        side_start=12, side_end=28, side_dist=15, side_height=25, side_top=1, side_bottom=0.3,
+        follow=0.6, transition=0.9, min_time=2.5, side_in_close=0.35),
+    'Perfil recomendado (aberta alta no meio, sem fechar na defesa)': dict(
+        dist_open=60, dist_close=25.5, height_open=30, height_close=34,
+        near_start=23, near_end=5, def_start=35, def_end=17, def_strength=0,
+        side_start=12, side_end=28, side_dist=10, side_height=5, side_top=1, side_bottom=0,
+        follow=0.6, transition=0.9, min_time=2.5, side_in_close=0.35,
+        side_angle=0, side_lat=0, max_speed=1, lat_open=21.921, lat_close=21.921,
+        angle_open=0.2, angle_close=0.2),
+}
+
 FOX_FIELDS = [
     ('T1', 'T1', 0.0, 1.0, 0.01, 0.25, ''),
     ('T2', 'T2', 0.0, 1.0, 0.01, 0.22, ''),
@@ -253,12 +270,14 @@ def _spin(lo, hi, step, val):
 class FieldsEditor(Gtk.Box):
     """Lista de campos numericos ligados a um arquivo de config. Salvar = gravar so as chaves alteradas."""
 
-    def __init__(self, app, path, fields, spaced, title, note=None, columns=1):
+    def __init__(self, app, path, fields, spaced, title, note=None, columns=1, presets=None):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         self.app, self.path, self.spaced = app, path, spaced
         self.spins = {}
         self.defaults = {}
         self.extra_values = None
+        self.presets = presets or {}
+        self.preset_extra = {}
         t = Gtk.Label(xalign=0)
         t.set_markup('<b>%s</b>' % GLib.markup_escape_text(title))
         self.pack_start(t, False, False, 0)
@@ -267,6 +286,19 @@ class FieldsEditor(Gtk.Box):
             n.set_markup('<small>%s</small>' % GLib.markup_escape_text(note))
             n.set_max_width_chars(95)
             self.pack_start(n, False, False, 0)
+        if self.presets:
+            pb = Gtk.Box(spacing=8)
+            pb.pack_start(Gtk.Label(label='Perfil:', xalign=0), False, False, 0)
+            self.preset_combo = Gtk.ComboBoxText()
+            self.preset_combo.append('', '(escolha um perfil para preencher os campos)')
+            for name in self.presets:
+                self.preset_combo.append(name, name)
+            self.preset_combo.set_active_id('')
+            self.preset_combo.connect('changed', self.on_preset)
+            pb.pack_start(self.preset_combo, False, False, 0)
+            app.edit_widgets.append(self.preset_combo)
+            self.pack_start(pb, False, False, 4)
+            self.extra_values = lambda: {k: fmt_num(v) for k, v in self.preset_extra.items()}
         self.grid = Gtk.Grid(column_spacing=12, row_spacing=3)
         self.pack_start(self.grid, False, False, 4)
         row = 0
@@ -309,9 +341,21 @@ class FieldsEditor(Gtk.Box):
             except (KeyError, ValueError):
                 sp.set_value(self.defaults[k])
 
+    def on_preset(self, *_):
+        name = self.preset_combo.get_active_id()
+        p = self.presets.get(name)
+        if not p:
+            return
+        for k, v in p.items():
+            if k in self.spins:
+                self.spins[k].set_value(v)
+        self.preset_extra = {k: v for k, v in p.items() if k not in self.spins}
+        self.app.log('Perfil "%s" carregado na tela. Clique em Salvar para gravar.' % name)
+
     def on_defaults(self, *_):
         for k, sp in self.spins.items():
             sp.set_value(self.defaults[k])
+        self.preset_extra = {}
         self.app.log('Valores padrão carregados na tela. Clique em Salvar para gravar.')
 
     def on_save(self, *_):
@@ -359,7 +403,8 @@ class SettingsPage(Gtk.ScrolledWindow):
 
         self.exp_cam = self._exp(outer, 'Câmera dinâmica', FieldsEditor(
             app, os.path.join(sider_dir, 'camera_dinamica.ini'), CAMERA_FIELDS, True, 'Arquivo camera_dinamica.ini',
-            '"Aberta" = meio de campo; "fechada" = perto das áreas.'))
+            '"Aberta" = meio de campo; "fechada" = perto das áreas. Use "Perfil" para carregar uma configuração pronta.',
+            presets=CAMERA_PRESETS))
         self.fox = self._build_fox(os.path.join(sider_dir, 'fox_locomotion.txt'))
         self._exp(outer, 'Fox Locomotion (giro, parada e toque)', self.fox, expanded=False)
         self.ai = self._build_ai(os.path.join(mods_dir, 'AI_Tweaks.ini'))
